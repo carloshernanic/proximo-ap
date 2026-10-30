@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.tmp
+.env
+.env.*
+
+# Dados pessoais e resultados: ficam só na sua máquina
+perfil/*
+!perfil/README.md
+dados/*
+!dados/.gitkeep
+relatorios/*
+!relatorios/.gitkeep
+documentos/*
+!documentos/README.md
