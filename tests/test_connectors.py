@@ -72,6 +72,8 @@ class GrupoZapTests(unittest.TestCase):
         self.assertEqual(url, "https://www.zapimoveis.com.br/aluguel/apartamentos/sp+sao-paulo+zona-oeste+pinheiros/?quartos=2&precoMaximo=4000&pagina=2")
         url = grupozap.build_search_url("zap", search_args(cidade="Campinas", bairro="Cambuí"), 1)
         self.assertEqual(url, "https://www.zapimoveis.com.br/aluguel/apartamentos/sp+campinas++cambui/")
+        url = grupozap.build_search_url("zap", search_args(bairro="Vila Olímpia", zona="zona-sul", negocio="venda"), 1)
+        self.assertEqual(url, "https://www.zapimoveis.com.br/venda/apartamentos/sp+sao-paulo+zona-sul+vl-olimpia/")
 
     def test_vivareal_url(self):
         url = grupozap.build_search_url("vivareal", search_args(bairro="Vila Mariana", zona="zona-sul", negocio="venda", tipo="casa"), 1)
@@ -110,10 +112,13 @@ class QuintoAndarTests(unittest.TestCase):
         payload = quintoandar.search(search_args(total_max=4000, limit=24))
         self.assertEqual([r["id"] for r in payload["results"]], ["quintoandar-9001"])
         self.assertEqual(payload["results"][0]["url"], "https://www.quintoandar.com.br/imovel/9001")
+        payload = quintoandar.search(search_args(negocio="venda", limit=24))
+        self.assertEqual(payload["results"], [])  # fixture has no sale prices
 
     def test_detail_finds_nested_node(self):
-        node = {"rentPrice": 3350, "remarks": "Reformado", "acceptsPets": True, "condoPrice": 1390,
-                "iptu": 490, "amenities": [{"text": "Box", "value": "SIM"}, {"text": "Banheira", "value": "NAO"}]}
+        node = {"rentPrice": 0, "salePrice": 900000, "remarks": "Reformado", "condoPrice": 1390,
+                "iptu": 490, "address": {"street": "Rua A", "neighborhood": "Moema"},
+                "amenities": [{"key": "BOX", "text": "Box", "value": "SIM"}, {"key": "ELEVADOR", "value": "NAO"}]}
         data = {"props": {"pageProps": {"x": [{"y": node}]}}}
         self.assertIs(quintoandar.find_listing_node(data), node)
 
