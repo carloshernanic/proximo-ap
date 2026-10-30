@@ -160,8 +160,16 @@ Use a lista `added` do retorno para saber o que é realmente novo.
      bairro, portal, link;
    - para cada imóvel **alto**: pontos fortes, pontos fracos, alertas, perguntas a
      fazer na visita (ex.: "o condomínio inclui água?", "barulho da avenida?").
-2. No chat, mostre só a tabela dos **alto** e **médio** (no máximo 10 linhas) e diga
-   onde está o relatório completo.
-3. Ofereça próximos passos sem executar nenhum: marcar favoritos
+2. Gere a versão visual, com fotos:
+   ```bash
+   python tools/relatorio_html.py --data <AAAA-MM-DD>
+   ```
+   Ela lê `dados/vistos.json` e grava `relatorios/<AAAA-MM-DD>.html`. Para que os
+   imóveis tenham fotos, mantenha o campo `fotos` dos conectores nos JSONs do Passo 6.
+   Para completar campos de imóveis já gravados (ex.: fotos vindas do `detail`), use
+   `python tools/scrape_state.py atualizar --results <arquivo>`.
+3. No chat, mostre só a tabela dos **alto** e **médio** (no máximo 10 linhas) e diga
+   onde estão o relatório completo e o HTML.
+4. Ofereça próximos passos sem executar nenhum: marcar favoritos
    (`python tools/scrape_state.py marcar --id <id> --status favorito`), detalhar algum
    imóvel, ou ampliar a busca (`/scrape amplo`).

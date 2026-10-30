@@ -35,7 +35,7 @@ sobre o que procura e depois busca imóveis no **QuintoAndar**, no **ZAP Imóvei
 | Fase | Comando | O que faz |
 |------|---------|-----------|
 | **1. Preferências** | `/setup` | Entrevista em 6 blocos: objetivo, localização, orçamento, imóvel, prédio e pesos. Grava `perfil/preferencias.md` e as buscas em `perfil/buscas.md` |
-| **2. Busca** | `/scrape` | Roda os conectores, remove duplicados, aplica os critérios eliminatórios, abre o detalhe dos melhores, dá nota e grava `relatorios/AAAA-MM-DD.md` |
+| **2. Busca** | `/scrape` | Roda os conectores, remove duplicados, aplica os critérios eliminatórios, abre o detalhe dos melhores, dá nota e grava `relatorios/AAAA-MM-DD.md` e uma página **HTML com as fotos** dos imóveis |
 | **3. Acompanhamento** | `scrape_state.py marcar` | Marca cada imóvel como favorito, visitado, proposta, descartado… |
 
 ## Começando
@@ -89,6 +89,16 @@ dados/vistos.json                 histórico de imóveis (ignorado pelo git)
 relatorios/                       relatório por execução (ignorado pelo git)
 tools/                            HTTP, parser ZAP/VivaReal, deduplicação
 tests/                            testes offline
+```
+
+## Relatório visual
+
+Cada `/scrape` gera `relatorios/AAAA-MM-DD.html`. São cards com galeria de fotos, nota,
+preço, custo mensal, prós, contras e alertas, com filtro por bairro e tema claro/escuro.
+Para gerar de novo:
+
+```bash
+python tools/relatorio_html.py --data 2026-10-30
 ```
 
 ## Acompanhar imóveis
