@@ -112,6 +112,7 @@ class QuintoAndarTests(unittest.TestCase):
         payload = quintoandar.search(search_args(total_max=4000, limit=24))
         self.assertEqual([r["id"] for r in payload["results"]], ["quintoandar-9001"])
         self.assertEqual(payload["results"][0]["url"], "https://www.quintoandar.com.br/imovel/9001")
+        quintoandar.time.sleep = lambda seconds: None  # skip the retry pauses
         payload = quintoandar.search(search_args(negocio="venda", limit=24))
         self.assertEqual(payload["results"], [])  # fixture has no sale prices
 
@@ -186,12 +187,43 @@ class ScrapeStateTests(unittest.TestCase):
         again = self.run_tool("candidates", "--results", self.write([zap]))
         self.assertEqual(again["selected"], [])
 
+    def test_atualizar_keeps_tracking_fields(self):
+        self.run_tool("store", "--results", self.write([{"id": "qa-1", "portal": "quintoandar", "url": "u", "status": "favorito"}]))
+        result = self.run_tool("atualizar", "--results", self.write([
+            {"id": "qa-1", "status": "novo", "fotos": [{"url": "f.jpg", "legenda": None}]},
+            {"id": "qa-404"},
+        ]))
+        self.assertEqual((result["updated"], result["unknown"]), (["qa-1"], ["qa-404"]))
+        entry = self.run_tool("listar")["imoveis"][0]
+        self.assertEqual(entry["status"], "favorito")
+        self.assertEqual(entry["fotos"][0]["url"], "f.jpg")
+
     def test_marcar_and_listar(self):
         self.run_tool("store", "--results", self.write([{"id": "qa-1", "portal": "quintoandar", "url": "u"}]))
         self.run_tool("marcar", "--id", "qa-1", "--status", "favorito", "--nota", "varanda boa")
         listed = self.run_tool("listar", "--status", "favorito")
         self.assertEqual(listed["total"], 1)
         self.assertEqual(len(listed["imoveis"][0]["notas"]), 1)
+
+
+class HtmlReportTests(unittest.TestCase):
+    def test_render_escapes_listing_text_and_links_photos(self):
+        import relatorio_html
+        entries = [
+            {"id": "quintoandar-1", "portal": "quintoandar", "url": "https://q/1", "negocio": "venda",
+             "preco_venda": 900000, "total": 1200, "area_m2": 80, "quartos": 3, "vagas": 1, "bairro": "Moema",
+             "endereco": "<script>alert(1)</script>", "nota_fit": 90, "fit": "alto", "alertas": ["confirmar <b>IPTU</b>"],
+             "fotos": [{"url": "https://www.quintoandar.com.br/img/lrg/a.jpg", "legenda": "Sala"}]},
+            {"id": "quintoandar-2", "portal": "quintoandar", "url": "https://q/2", "status": "descartado",
+             "motivo_descarte": "Área 40 m² abaixo do mínimo", "area_m2": 40},
+        ]
+        html = relatorio_html.render(entries, "2026-10-30")
+        self.assertNotIn("<script>alert(1)", html)
+        self.assertIn("&lt;script&gt;", html)
+        self.assertIn("confirmar &lt;b&gt;IPTU&lt;/b&gt;", html)
+        self.assertIn('href="https://www.quintoandar.com.br/img/xxl/a.jpg"', html)
+        self.assertIn("R$ 900.000", html)
+        self.assertIn("Descartados (1)", html)
 
 
 if __name__ == "__main__":
