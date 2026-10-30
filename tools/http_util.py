@@ -111,6 +111,7 @@ def listing(**fields) -> dict:
         "area_m2", "quartos", "banheiros", "vagas",
         "bairro", "endereco", "cidade",
         "mobiliado", "aceita_pets", "comodidades", "descricao", "publicado_em",
+        "fotos",  # [{"url": ..., "legenda": ...}], cover first
     ]
     unknown = set(fields) - set(keys)
     if unknown:

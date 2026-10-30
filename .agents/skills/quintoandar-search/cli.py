@@ -15,6 +15,17 @@ from http_util import (  # noqa: E402
 
 BASE = "https://www.quintoandar.com.br"
 TIPOS = {"apartamento": "apartamento", "casa": "casa", "kitnet": "kitnet"}
+MAX_FOTOS = 12
+
+
+def photo_urls(photos) -> list[dict]:
+    """Photo entries carry only a file name; the CDN serves it in several sizes."""
+    entries = [p for p in photos or [] if isinstance(p, dict) and p.get("url")]
+    entries.sort(key=lambda p: not p.get("cover"))
+    return [
+        {"url": f"{BASE}/img/lrg/{p['url']}", "legenda": p.get("subtitle")}
+        for p in entries[:MAX_FOTOS]
+    ]
 
 
 def build_search_url(args) -> str:
@@ -66,6 +77,7 @@ def parse_house(house: dict, negocio: str, pets_filter: bool) -> dict:
         comodidades=house.get("amenities") or [],
         descricao=None,
         publicado_em=None,
+        fotos=photo_urls(house.get("photos")),
     )
 
 
@@ -196,6 +208,7 @@ def detail(args) -> dict:
         comodidades=amenities,
         descricao=node.get("remarks"),
         publicado_em=None,
+        fotos=photo_urls(node.get("photos")),
     )
     nearby = [p.get("name") for p in node.get("placesNearby") or [] if isinstance(p, dict)]
     return {

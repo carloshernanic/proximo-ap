@@ -86,6 +86,8 @@ def parse_product(product: dict, portal: str, negocio: str) -> dict:
     price = to_int(offers.get("price"))
     address = product.get("address") or {}
     amenities = [f.get("value") for f in product.get("amenityFeature") or [] if f.get("value")]
+    image = product.get("image") or []
+    images = [image] if isinstance(image, str) else [u for u in image if isinstance(u, str)]
     bairro_match = re.search(r"\bem\s+(.+?),\s*[^,]+$", name)
     vagas = _count_from_name(name, "vaga")
     if vagas is None and "vaga" not in name:
@@ -120,6 +122,7 @@ def parse_product(product: dict, portal: str, negocio: str) -> dict:
         comodidades=[AMENITY_PT.get(a, a) for a in amenities],
         descricao=(product.get("description") or "")[:600] or None,
         publicado_em=None,
+        fotos=[{"url": u, "legenda": None} for u in images[:12]],
     )
 
 
