@@ -106,8 +106,8 @@ gravados (Passo 6), para não reaparecerem.
 ## Passo 4: Detalhar os promissores
 
 Para os até **10** melhores sobreviventes (pela ordem preliminar de preço total vs.
-orçamento e bairro), rode o `detail` do conector correspondente (ou `WebFetch` para
-origem websearch). Use o detalhe para:
+orçamento e bairro), rode o `detail` do conector correspondente (com `--negocio venda`
+em compra; `WebFetch` para origem websearch). Use o detalhe para:
 
 - completar condomínio, IPTU, pets, mobília, comodidades;
 - confirmar obrigatórios/desejáveis pela descrição;
