@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
@@ -41,7 +42,7 @@ def parse_house(house: dict, negocio: str, pets_filter: bool) -> dict:
     return listing(
         id=f"quintoandar-{house['id']}",
         portal="quintoandar",
-        url=f"{BASE}/imovel/{house['id']}",
+        url=f"{BASE}/imovel/{house['id']}" + ("" if negocio == "aluguel" else "/comprar"),
         titulo=house.get("shortRentDescription") if negocio == "aluguel" else house.get("shortSaleDescription"),
         tipo=house.get("type"),
         negocio=negocio,
@@ -68,8 +69,7 @@ def parse_house(house: dict, negocio: str, pets_filter: bool) -> dict:
     )
 
 
-def search(args) -> dict:
-    url = build_search_url(args)
+def load_search_state(url: str) -> dict:
     try:
         _, html = fetch(url)
     except FetchError as exc:
@@ -79,17 +79,28 @@ def search(args) -> dict:
     data = next_data(html)
     if not data:
         fail(f"no __NEXT_DATA__ in {url} - page layout changed or request blocked", "NO_DATA")
-    state = data["props"]["pageProps"].get("initialState") or {}
-    houses = state.get("houses") or {}
-    visible = (state.get("search") or {}).get("visibleHouses") or {}
-    order = (visible.get("pages") or {}).get("0") or list(houses)
-    results = [
-        parse_house(houses[house_id], args.negocio, bool(args.pets))
-        for house_id in order
-        if house_id in houses
-    ]
+    return data["props"]["pageProps"].get("initialState") or {}
+
+
+def search(args) -> dict:
+    url = build_search_url(args)
     price_field = "aluguel" if args.negocio == "aluguel" else "preco_venda"
-    results = [r for r in results if r[price_field]]
+    # The server sometimes renders a total but houses without the requested price
+    # (or none at all); a short pause and another request usually fixes it.
+    for attempt in range(3):
+        state = load_search_state(url)
+        houses = state.get("houses") or {}
+        visible = (state.get("search") or {}).get("visibleHouses") or {}
+        order = (visible.get("pages") or {}).get("0") or list(houses)
+        results = [
+            parse_house(houses[house_id], args.negocio, bool(args.pets))
+            for house_id in order
+            if house_id in houses
+        ]
+        results = [r for r in results if r[price_field]]
+        if results or not visible.get("total"):
+            break
+        time.sleep(2 * (attempt + 1))
     results = apply_client_filters(results, args)[: args.limit]
     return {
         "portal": "quintoandar",
@@ -102,7 +113,7 @@ def search(args) -> dict:
 def find_listing_node(node):
     """The detail page nests the house under a varying key; find it by its fields."""
     if isinstance(node, dict):
-        if "rentPrice" in node and "remarks" in node:
+        if "condoPrice" in node and ("rentPrice" in node or "salePrice" in node) and "address" in node:
             return node
         for value in node.values():
             found = find_listing_node(value)
@@ -121,40 +132,63 @@ def detail(args) -> dict:
     if not match:
         fail("detail espera um id numérico ou URL do QuintoAndar", "BAD_ARG")
     house_id = match.group(1)
-    try:
-        final_url, html = fetch(f"{BASE}/imovel/{house_id}")
-    except FetchError as exc:
-        fail(str(exc), "FETCH_FAILED")
+    # Rental listings resolve at /imovel/<id>; the sale view lives under
+    # /imovel/<id>/comprar (sale-only listings 404 on the plain path).
+    paths = [f"/imovel/{house_id}", f"/imovel/{house_id}/comprar"]
+    if args.negocio == "venda":
+        paths.reverse()
+    final_url = html = None
+    for path in paths:
+        try:
+            final_url, html = fetch(BASE + path, retries=0)
+            break
+        except FetchError as exc:
+            if exc.status == 403:
+                fail(f"{exc} - o portal bloqueou o acesso automatizado", "BLOCKED")
+            if exc.status != 404:
+                fail(str(exc), "FETCH_FAILED")
+    if html is None:
+        fail(f"anúncio {house_id} não existe mais", "NOT_FOUND")
     data = next_data(html)
     node = find_listing_node(data) if data else None
     if not node:
         fail(f"anúncio {house_id} sem dados (removido ou indisponível?)", "NOT_FOUND")
-    amenities = [
-        a.get("text") for a in node.get("amenities") or []
-        if isinstance(a, dict) and a.get("value") == "SIM"
-    ]
-    rent = to_int(node.get("rentPrice"))
+    flags = {}
+    for value in node.values():
+        if isinstance(value, list):
+            for entry in value:
+                if isinstance(entry, dict) and "key" in entry and "value" in entry:
+                    flags[entry["key"]] = entry
+    amenities = [e.get("text") or e["key"] for e in flags.values() if e["value"] == "SIM"]
+    elevator = {"SIM": True, "NAO": False}.get((flags.get("ELEVADOR") or {}).get("value"))
+    rent = to_int(node.get("rentPrice")) or None
     condo = to_int(node.get("condoPrice"))
     iptu = to_int(node.get("iptu"))
     region = node.get("region") or {}
     address = node.get("address") or {}
+    if isinstance(address, dict) and address.get("street"):
+        address = {**address, "address": address["street"]}
+    is_rent = "/comprar" not in (final_url or "")
     item = listing(
         id=f"quintoandar-{house_id}",
         portal="quintoandar",
         url=final_url,
         titulo=node.get("shortRentDescription") or node.get("title"),
         tipo=node.get("type"),
-        negocio="aluguel" if node.get("forRent", True) else "venda",
+        negocio="aluguel" if is_rent else "venda",
         aluguel=rent,
         preco_venda=to_int(node.get("salePrice")) or None,
         condominio=condo,
         iptu=iptu,
-        total=to_int(node.get("totalCost")) or (sum(v for v in (rent, condo, iptu) if v) or None),
+        total=(
+            to_int(node.get("totalCost")) or (sum(v for v in (rent, condo, iptu) if v) or None)
+            if is_rent else (sum(v for v in (condo, iptu) if v) or None)
+        ),
         area_m2=to_int(node.get("area")),
         quartos=to_int(node.get("bedrooms")),
         banheiros=to_int(node.get("bathrooms")),
-        vagas=to_int(node.get("parkingSpots")),
-        bairro=node.get("neighbourhood") or region.get("name"),
+        vagas=to_int(node.get("parkingSpots", node.get("parkingSpaces"))),
+        bairro=node.get("neighbourhood") or (address.get("neighborhood") if isinstance(address, dict) else None) or region.get("name"),
         endereco=address.get("address") if isinstance(address, dict) else address,
         cidade=node.get("city") or (address.get("city") if isinstance(address, dict) else None),
         mobiliado=node.get("hasFurniture"),
@@ -169,6 +203,9 @@ def detail(args) -> dict:
         "listing": item,
         "perto_do_metro": node.get("isNearSubway"),
         "lugares_proximos": nearby,
+        "elevador": elevator,
+        "suites": to_int(node.get("suites")),
+        "faixa_andar": node.get("rangeFloor"),
     }
 
 
@@ -195,6 +232,7 @@ def main() -> None:
 
     d = sub.add_parser("detail", help="detalhes de um anúncio")
     d.add_argument("id", help="id numérico ou URL do anúncio")
+    d.add_argument("--negocio", choices=["aluguel", "venda"], default="aluguel")
     d.add_argument("--format", choices=["json", "table"], default="json")
 
     args = parser.parse_args()

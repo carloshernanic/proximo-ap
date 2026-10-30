@@ -51,11 +51,14 @@ que o portal informa). `total` é o custo mensal: no aluguel, o pacote completo
 ### Detalhes
 
 ```bash
-python .agents/skills/quintoandar-search/cli.py detail <id-ou-url>
+python .agents/skills/quintoandar-search/cli.py detail <id-ou-url> [--negocio venda]
 ```
 
-Retorna descrição completa, condomínio e IPTU separados, `aceita_pets`, `mobiliado`,
-comodidades presentes, `perto_do_metro` e `lugares_proximos`.
+Use `--negocio venda` para imóveis vindos de busca de compra (alguns estão à venda e
+para alugar; sem a flag, abre a versão de aluguel). Retorna descrição completa,
+condomínio e IPTU separados, `aceita_pets`, `mobiliado`, comodidades presentes,
+`elevador` (true/false/null), `suites`, `faixa_andar`, `perto_do_metro` e
+`lugares_proximos`.
 
 ## Exemplos
 
