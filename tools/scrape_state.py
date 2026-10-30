@@ -2,6 +2,7 @@
 
     python tools/scrape_state.py candidates --results <hits.json>
     python tools/scrape_state.py store      --results <avaliados.json>
+    python tools/scrape_state.py atualizar  --results <detalhes.json>
     python tools/scrape_state.py marcar     --id <id> --status <status> [--nota "..."]
     python tools/scrape_state.py listar     [--status novo] [--format json|table]
 
@@ -112,6 +113,30 @@ def cmd_store(args) -> dict:
     return {"added": [i["id"] for i in selected], "skipped": skipped, "invalid": invalid}
 
 
+PROTECTED = {"id", "status", "notas", "primeira_vez", "nota_fit", "fit", "motivo_descarte"}
+
+
+def cmd_atualizar(args) -> dict:
+    """Fill in fetched fields (photos, fees...) on entries already stored.
+
+    Tracking fields the user or /scrape decided (status, notes, score) are kept.
+    """
+    state = load_state()
+    updated, unknown = [], []
+    for item in read_results(args.results):
+        entry = state["vistos"].get(item.get("id"))
+        if entry is None:
+            unknown.append(item.get("id"))
+            continue
+        for key, value in item.items():
+            if key not in PROTECTED and value not in (None, [], ""):
+                entry[key] = value
+        updated.append(item["id"])
+    if updated:
+        save_state(state)
+    return {"updated": updated, "unknown": unknown}
+
+
 def cmd_marcar(args) -> dict:
     state = load_state()
     entry = state["vistos"].get(args.id)
@@ -136,7 +161,7 @@ def cmd_listar(args) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="scrape_state")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("candidates", "store"):
+    for name in ("candidates", "store", "atualizar"):
         p = sub.add_parser(name)
         p.add_argument("--results", required=True)
     m = sub.add_parser("marcar")
@@ -148,7 +173,8 @@ def main() -> None:
     lst.add_argument("--format", choices=["json", "table"], default="json")
     args = parser.parse_args()
 
-    handler = {"candidates": cmd_candidates, "store": cmd_store, "marcar": cmd_marcar, "listar": cmd_listar}
+    handler = {"candidates": cmd_candidates, "store": cmd_store, "atualizar": cmd_atualizar,
+               "marcar": cmd_marcar, "listar": cmd_listar}
     result = handler[args.command](args)
     if args.command == "listar" and args.format == "table":
         for e in result["imoveis"]:
