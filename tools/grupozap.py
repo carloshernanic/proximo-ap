@@ -42,6 +42,7 @@ def build_search_url(portal: str, args, page: int) -> str:
     zona = slugify(args.zona) if args.zona else ""
     bairro = slugify(args.bairro) if args.bairro else ""
     if portal == "zap":
+        bairro = re.sub(r"^vila-", "vl-", bairro)  # ZAP abbreviates "Vila" in slugs
         place = f"{uf}+{cidade}"
         if bairro:
             place += f"+{zona}+{bairro}"  # empty zone ("++") works for cities without zones
